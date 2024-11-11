@@ -1,0 +1,228 @@
+---
+title: "NYDP Shooting Incident Data"
+author: "Parth"
+date: "2024-10-29"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+# Suppress package startup messages
+suppressPackageStartupMessages({
+  library(tidyverse)
+})
+```
+
+## Introduction
+The NYPD Shooting Incident Data Historic dataset contains exhaustive information about various shooting incidents that occurred in the city. The data provides information on a range of variables such as date and time, details regarding location, information about victim and perpetrator demographics, and a host of other variables. This would yield even more insight into patterns and trends related to shootings within NYC.
+
+## Dataset Description
+The NYPD Shooting Incident Data (Historic) encompasses a broad-based dataset related to the shooting incidents taken place within the city limits of New York. The dataset is available on the NYC Open Data Portal and is downloadable free of charge.
+
+## Key Features of the Dataset Include:
+- Incident Date and Time: The date and time the shooting occurred.
+- Location Information: Borough, precinct, and coordinates.
+- Victim Information: Victim's age group, sex, and race.
+- Offender Data: Age range, gender, and race if available.
+- Incident Key and Statistical Codes: Identifiers and categorization codes unique to the incidents.
+
+## Import the Data
+Use the provided URL to import the NYPD Shooting Incident Data directly into R. You can use the `read_csv` function from the `readr` package (part of `tidyverse`) to load the data.
+
+## Data Import
+We will import the dataset directly from the provided URL to ensure reproducibility.
+
+```{r load-data}
+data_url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+shooting_data <- read_csv(data_url)
+```
+
+## Data Exploration
+Now that we have imported the data, we can begin exploring its structure and contents.
+
+```{r view-data}
+str(shooting_data)
+summary(shooting_data)
+glimpse(shooting_data)
+head(shooting_data)
+sessionInfo()
+```
+
+## Tidy and Transform Data
+
+In this section, we'll clean and transform the dataset to make it suitable for analysis. We will focus on correcting data types, handling missing values, and streamlining the dataset by removing unnecessary columns.
+
+## Changing Data Types and Handling Missing Data
+Follow these steps to transform your dataset:
+
+- Convert Date and Time: Ensure that all date and time fields are in the appropriate format.
+
+```{r}
+library(lubridate)
+shooting_data$OCCUR_DATE <- mdy(shooting_data$OCCUR_DATE)
+```
+- Factor Conversion: Change categorical variables such as borough, victim's race, and perpetrator's race to factor type to facilitate analysis.
+
+```{r factor-conversion}
+shooting_data$BORO <- as.factor(shooting_data$BORO)
+shooting_data$VIC_RACE <- as.factor(shooting_data$VIC_RACE)
+shooting_data$PERP_RACE <- as.factor(shooting_data$PERP_RACE)
+shooting_data$LOC_OF_OCCUR_DESC <- as.factor(shooting_data$LOC_OF_OCCUR_DESC)
+```
+
+- Handle Missing Data: Describe your strategy for handling missing data. For instance, you might choose to impute missing values or remove rows with missing values based on the context.
+
+# Example of removing rows with missing values in critical columns
+```{r}
+shooting_data <- na.omit(shooting_data, select = c("PERP_AGE_GROUP", "VIC_AGE_GROUP"))
+```
+
+# Impute missing values if appropriate
+
+```{r}
+shooting_data$PERP_AGE_GROUP <- ifelse(is.na(shooting_data$PERP_AGE_GROUP), 'UNKNOWN', shooting_data$PERP_AGE_GROUP)
+```
+
+- Column Removal: Remove columns that are not necessary for the analysis to simplify the dataset.
+
+```{r}
+shooting_data <- select(shooting_data, -c(LOCATION_DESC, JURISDICTION_CODE))  # assuming these are the columns you want to remove
+```
+
+## Summary of Cleaned Data
+After tidying and transforming the data, provide a summary to check the structure and any remaining missing data.
+
+```{r}
+summary(shooting_data)
+```
+
+## Visualizations and Analysis
+
+Now that we've prepared our data, let's visualize it to better understand the distribution and patterns of shooting incidents in New York City.
+
+### Geographic Distribution of Incidents
+
+Visualizing the geographic distribution can help us see which areas are more prone to shooting incidents.
+
+```{r geographic-plot}
+library(ggplot2)
+ggplot(shooting_data, aes(x = Longitude, y = Latitude, color = BORO)) +
+  geom_point(alpha = 0.5) +
+  labs(title = "Geographic Distribution of Shooting Incidents in NYC",
+       x = "Longitude",
+       y = "Latitude",
+       color = "Borough") +
+  theme_minimal()
+```
+
+This map highlights the concentration of incidents across different boroughs. Areas with higher concentrations might require more focused interventions.
+
+## Shootings by Time and Borough
+Understanding how shootings are distributed across different times can indicate patterns related to time-based activities or policing.
+
+```{r Shootings by Time and Borough}
+shooting_data %>%
+  mutate(hour = hour(OCCUR_TIME)) %>%
+  ggplot(aes(x = hour, fill = BORO)) +
+  geom_histogram(position = "dodge", binwidth = 1) +
+  labs(title = "Distribution of Shootings by Hour Across Boroughs",
+       x = "Hour of the Day",
+       y = "Number of Incidents",
+       fill = "Borough") +
+  theme_minimal()
+```
+
+This histogram can reveal if certain times of the day are more prone to shootings, and if this pattern varies by borough.
+
+## Initial Analysis
+With the data visualized, let’s perform a basic analysis to identify any immediate trends or outliers.
+
+```{r Analysis}
+# Summarizing incidents by borough and victim's age group
+borough_summary <- shooting_data %>%
+  group_by(BORO, VIC_AGE_GROUP) %>%
+  summarise(Incidents = n(), .groups = 'drop')
+
+# Displaying the summarized data
+print(borough_summary)
+```
+
+## Predictive Modeling
+
+We build upon these observations in the following discussion by applying a logistic regression model to the factors that affect shooting incidents in NYC. The model should explain the significant predictors of whether or not a shooting incident is likely to be classified as a statistical murder.
+
+### Preparing the Data for Modeling
+
+First, we need to prepare our dataset by selecting relevant features and ensuring that our target variable is suitable for logistic regression.
+
+```{r prepare-model-data}
+# Selecting relevant columns and dropping NA values
+model_data <- shooting_data %>%
+  select(INCIDENT_KEY, BORO, OCCUR_TIME, PERP_AGE_GROUP, PERP_SEX, PERP_RACE, STATISTICAL_MURDER_FLAG) %>%
+  drop_na()
+
+# Converting the target variable to a binary factor
+model_data$STATISTICAL_MURDER_FLAG <- as.factor(model_data$STATISTICAL_MURDER_FLAG)
+```
+
+## Creating the Logistic Regression Model
+We will create a logistic regression model to estimate the probability of an incident being a statistical murder based on the perpetrator's demographics and the location of the incident.
+
+```{r}
+# Fitting the logistic regression model
+model <- glm(STATISTICAL_MURDER_FLAG ~ BORO + PERP_AGE_GROUP + PERP_SEX + PERP_RACE, 
+             family = binomial(link = "logit"), data = model_data)
+
+# Displaying the model summary
+summary(model)
+```
+
+## Model Diagnostics
+To assess the quality of our model, we'll look at the residuals and check for any significant outliers or leverage points that could affect our predictions.
+
+```{r}
+# Checking residuals
+par(mfrow = c(2, 2))
+plot(model)
+```
+
+## Interpretation of Results
+The coefficients from the logistic regression model afford a view of exactly how each factor, such as borough or perpetrator race, adjusts the odds of an incident being classified as a murder. Note that a positive coefficient increases the odds of an incident being a murder, while negative coefficients decrease such odds.
+
+## Further Questions
+Further visualizations and analyses often lead to more questions, such as:
+
+- Is this not only higher, but also in terms of severity, compared with some boroughs?
+- How do the demographics of perpetrators correlate with those of victims across incidents?
+- Is there some seasonality or monthly variation in when the shootings take place?
+
+Let these questions help dive into your data deeper to possibly influence strategies in public safety.
+
+## Conclusion and Bias Identification
+
+Analyzing the NYPD Shooting Incident Data, we have come across some trends in this analysis that may very well inform us about the criminal dynamics in New York. By looking into geographic and temporal distributions, and exploring how victims' and perpetrators' demographics relate to each other, we have provided foundational insight to inform strategies for public safety and interventions.
+
+### Sources of Bias in the Data
+
+There are several potential sources in this dataset and the analysis here:
+
+1. **Data Bias**: Not every shooting incident gets reported similarly in all boroughs, hence this could be a reason for the under-or over-representation of certain areas.
+2. **Data Collection Bias**: The practices and priorities of the data collectors themselves may affect the data collection, with a possible consequence of distortion in the direction of more serious incidents or incidents with certain kinds of demographic involvement.
+3. **Selection Bias**: The fact that this dataset is public means sensitive or unreleased cases are excluded, which could in itself be a bias that shifts the outcome of the general results.
+
+### Personal Bias and Mitigation
+
+With this in mind, as the analyst, my background and experiences will serve to predispose me toward certain ways of interpreting the data. In other words, I can be prone to underlining those findings that confirm my preexisting beliefs—for instance, whether crime rate is higher in specific neighborhoods or among some types of demographics.
+
+The following steps have been taken to reduce these biases:
+
+- **Multiplicity of Data Sources**: Findings, as much as possible, are cross-checked against other data sources or studies to be consistent and reliable.
+- **Peer Review**: Engaging colleagues and stakeholders in reviewing the process of analysis and findings that challenge and refine conclusions.
+- **Open Methodology**: This means that the analytical process is fully transparent, open to scrutiny, and thereby documented step by step, right from cleaning up the data to the final outputs.
+
+### Further Reflections
+
+This analysis therefore raises some questions, such as socioeconomic pressures on shooting cases, seasonal trends, and effective law enforcement strategies among others, which call for in-depth studies. It is now much easier to get an insight and deepen our strategies for improvement in public safety.
+
+Moving forward, it is critical that these biases are observed and a balancing view pursued to reflect the reality of crime in New York City. In other words, though data analysis provides insight, it is only as good as the underlying data and methodologies. Work to recognize and mitigate potential biases so the findings and recommendations provide value to positive change in public policy and community well-being.

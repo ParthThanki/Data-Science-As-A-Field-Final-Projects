@@ -1,0 +1,178 @@
+---
+title: "COVID-19 Data Analysis"
+author: "Parth Thanki"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(lubridate)
+  library(readr)
+  library(ggplot2)
+  library(dplyr)
+  library(broom)
+})
+```
+
+## Introduction
+This report presents an analysis of the COVID-19 data, which encompasses confirmed cases and deaths globally. The analysis aims to uncover trends and patterns that could aid in understanding the spread and impact of the virus.
+
+## Dataset Description
+The COVID-19 dataset includes daily updates of confirmed cases and deaths from countries around the world. The data is sourced from the Johns Hopkins University Center for Systems Science and Engineering (JHU CSSE).
+
+## Dataset Importation
+The dataset is imported directly from local files to ensure reproducibility.
+
+```{r load-data}
+# Links to the raw GitHub content
+confirmed_us_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv"
+deaths_us_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv"
+confirmed_global_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+deaths_global_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+
+# Using read_csv() from the readr package to load the data directly from GitHub
+confirmed_us <- read_csv(confirmed_us_url)
+deaths_us <- read_csv(deaths_us_url)
+confirmed_global <- read_csv(confirmed_global_url)
+deaths_global <- read_csv(deaths_global_url)
+```
+
+## Data Exploration and Cleaning
+Exploring and cleaning the dataset to prepare for analysis.
+
+```{r view-data}
+# Checking structure
+glimpse(confirmed_global)
+glimpse(deaths_global)
+
+# Checking column names
+print(colnames(confirmed_global))
+print(colnames(deaths_global))
+
+# Convert date columns to date format
+dates <- names(confirmed_global)[5:length(names(confirmed_global))]
+confirmed_global[dates] <- lapply(confirmed_global[dates], as.numeric)
+deaths_global[dates] <- lapply(deaths_global[dates], as.numeric)
+
+# Summarizing the first confirmed cases and deaths
+summary(select(confirmed_global, ends_with("20")))
+summary(select(deaths_global, ends_with("20")))
+```
+
+## Data Transformation
+Transforming the data for better analysis and visualizations.
+
+```{r factor-conversion}
+# Melt the data to long format for easier plotting and manipulation
+confirmed_long <- pivot_longer(confirmed_global, cols = starts_with("1/22/20"), names_to = "Date", values_to = "Cases")
+deaths_long <- pivot_longer(deaths_global, cols = starts_with("1/22/20"), names_to = "Date", values_to = "Deaths")
+
+# Convert the 'Date' column to a date object
+confirmed_long$Date <- mdy(confirmed_long$Date)
+deaths_long$Date <- mdy(deaths_long$Date)
+```
+
+
+## Data Analysis and Visualization
+
+
+# Visualization 1: Global Trend of COVID-19 Cases Over Time
+```{r}
+# Plotting total cases over time
+ggplot(confirmed_long, aes(x = Date, y = Cases, group = `Country/Region`, color = `Country/Region`)) +
+  geom_line() +
+  labs(title = "Global Trend of COVID-19 Cases Over Time", x = "Date", y = "Total Cases")
+```
+
+# Visualization 2: Global Trend of COVID-19 Deaths Over Times
+
+```{r}
+# Plotting total deaths over time
+ggplot(deaths_long, aes(x = Date, y = Deaths, group = `Country/Region`, color = `Country/Region`)) +
+  geom_line() +
+  labs(title = "Global Trend of COVID-19 Deaths Over Time", x = "Date", y = "Total Deaths")
+```
+
+## Statistical Analysis
+
+### Preparing the Data for Modeling
+
+Performing a basic statistical model to understand factors influencing COVID-19 case rates.
+
+```{r prepare-model-data}
+# Preparing data for regression analysis
+model_data <- confirmed_long %>%
+  group_by(Date) %>%
+  summarise(Total_Cases = sum(Cases, na.rm = TRUE))
+```
+
+## Creating the Linear Regression Model
+We will create a logistic regression model to estimate the probability of an incident being a statistical murder based on the perpetrator's demographics and the location of the incident.
+
+```{r create-linear-model}
+# Linear regression model on time series data
+model <- lm(Total_Cases ~ Date, data = model_data)
+summary(model)
+```
+
+## Model Diagnostics
+We'll assess the quality of our model through statistical summaries and basic residual analysis.
+
+```{r model-diagnostics-very-simple, message=FALSE, warning=FALSE}
+# Print the summary of the model to see coefficients and statistics
+summary(model)
+
+# Calculate and plot residuals to check for any obvious patterns or issues
+model_residuals <- residuals(model)
+hist(model_residuals, main="Histogram of Residuals", xlab="Residuals", breaks=30)
+plot(model_residuals, main="Plot of Residuals", ylab="Residuals", xlab="Index", type='p')
+```
+
+## Interpretation of Results
+The coefficients from the logistic regression model afford a view of exactly how each factor, such as borough or perpetrator race, adjusts the odds of an incident being classified as a murder. Note that a positive coefficient increases the odds of an incident being a murder, while negative coefficients decrease such odds.
+
+## Further Questions
+This can stimulate more questions through metrics and visualizations down the line that can help in generating deeper insights with focused strategies. Now, when it comes to the COVID-19 data, think about questions like?
+
+- What is the relative severity and mortality of COVID-19 in different areas or countries?
+
+- Age, population density or health care capacity correlations with increased case fatalities?
+
+- Seasonality of COVID-19 cases and deaths: An observational study - University of Miami
+
+Further analyses, guided by these questions, can help reveal patterns that may inform future global responses and mitigation efforts.
+
+## Bias Identification
+
+Identifies sources of bias in the data and analysis
+
+# Sources of Bias
+
+- Reporting bias: The strength of confirmed cases or death reporting differs from country to country and can affect the responses quite a lot.
+
+- Case ascertainment bias due to changes in testing availability and strategies over time
+
+- Be cautious of: Analysis Bias — Aggregates based on population sizes without corrections can lead to incorrect conclusions regarding severity and spread.
+
+## Conclusion
+
+In this analysis we have explored the numerous trends that took place across the world with respect to COVID-19 cases and deaths. We also saw wide differences between nations and regions in case and death rates—something that may be explained by interventions, public health infrastructure and response from communities to follow guidelines.
+
+### Key Finding
+
+- Global Reach: The global nature of the COVID-19 pandemic was evident in our analysis, with varying levels and modes of epidemiological burden among some nations. 
+- Trends Over Time: We also noted temporal trends over specific periods that could coincide with public health interventions like lockdowns, vaccination drives/xemption orders from selective testing protocols. 
+- Regional Disparity: The regional disparity indicated by the data also suggested considerable differences in handling COVID-19 crisis management and outcomes in terms of life-first approach indicating a need for local context-specific responsive measures   beyond generalizations of national responses to the pandemic (20).
+
+### Implications
+The study highlights the importance of ongoing monitoring and dynamic responses to the challenging context that persists. These findings can guide future decisions by health authorities and policymakers when planning appropriate response measures for this epidemic as well as allocating resources to address the continued impact of the pandemic.
+
+### Recommendations for Future Research
+- Suggestions for Future Research - Longitudinal Studies: More longitudinal studies are necessary to measure the long-term effects of the virus on different cohorts, including how emerging variants will influence these dynamics.
+- Vaccination Impact: As vaccination data become more available, incorporating this information could be crucial to inform about vaccines and their role in controlling the pandemic.
+- Socioeconomic Factors: Further investigation into socioeconomic factors potentially influencing COVID-19 outcomes may assist public health measures and support mechanisms.
